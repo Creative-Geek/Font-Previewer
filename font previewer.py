@@ -2,27 +2,45 @@ import sys
 import os
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QScrollArea, QLabel, QPushButton, QLineEdit, QFileDialog,
-                               QProgressDialog, QSpinBox, QHBoxLayout, QMenu)
+                               QProgressDialog, QSpinBox, QHBoxLayout, QMenu, QToolButton)
 from PySide6.QtGui import QFont, QFontDatabase, QAction, QIcon
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QScroller
 from PySide6.QtWidgets import QFrame
 
+class FontLoadingThread(QThread):
+    finished = Signal(list)
+
+    def run(self):
+        fonts = QFontDatabase.families()
+        self.finished.emit(fonts)
+
 class PreviewUpdateThread(QThread):
     font_processed = Signal(str, str, int)
     finished = Signal()
 
-    def __init__(self, fonts, preview_text):
+    def __init__(self, fonts, preview_text, chunk_size=10):
         super().__init__()
         self.fonts = fonts
         self.preview_text = preview_text
         self.is_cancelled = False
+        self.chunk_size = chunk_size
 
     def run(self):
-        for i, font_name in enumerate(self.fonts):
+        for i in range(0, len(self.fonts), self.chunk_size):
             if self.is_cancelled:
                 break
-            self.font_processed.emit(font_name, self.preview_text, i)
+            
+            # Process a chunk of fonts
+            chunk = self.fonts[i:i + self.chunk_size]
+            for font_name in chunk:
+                if self.is_cancelled:
+                    break
+                self.font_processed.emit(font_name, self.preview_text, i)
+            
+            # Small delay to allow GUI to process events
+            self.msleep(10)
+            
         self.finished.emit()
 
 class FontPreviewer(QMainWindow):
@@ -66,6 +84,22 @@ class FontPreviewer(QMainWindow):
         load_button.clicked.connect(self.load_fonts_from_folder)
         layout.addWidget(load_button)
 
+        # Add search button and input
+        self.search_button = QToolButton()
+        self.search_button.setIcon(QIcon("search.png"))  # Make sure to have a search icon file
+        self.search_button.clicked.connect(self.toggle_search)
+        input_layout.addWidget(self.search_button)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search fonts...")
+        self.search_input.returnPressed.connect(self.filter_fonts)
+        self.search_input.hide()  # Hidden by default
+        input_layout.addWidget(self.search_input)
+
+        # Store all fonts separately from filtered fonts
+        self.all_fonts = []
+        self.filtered_fonts = []
+        
         # Create scroll area for font previews
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -78,9 +112,13 @@ class FontPreviewer(QMainWindow):
         QScroller.grabGesture(scroll.viewport(), QScroller.ScrollerGestureType.TouchGesture)
         QScroller.grabGesture(scroll.viewport(), QScroller.ScrollerGestureType.LeftMouseButtonGesture)
 
-        # Load system fonts
-        self.load_system_fonts()
-        self.update_previews()
+        # Initialize fonts list
+        self.fonts = []
+
+        # Show initial loading message
+        self.loading_label = QLabel("Loading fonts...")
+        self.loading_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.loading_label)
 
         # Add update button
         update_button = QPushButton("Update Preview")
@@ -90,21 +128,34 @@ class FontPreviewer(QMainWindow):
         self.progress_dialog = None
         self.update_thread = None
 
-    def load_system_fonts(self):
-        self.fonts = []
-        self.fonts = QFontDatabase.families()
+        # Start loading fonts
+        self.load_fonts_thread = FontLoadingThread()
+        self.load_fonts_thread.finished.connect(self.on_fonts_loaded)
+        self.load_fonts_thread.start()
+
+    def on_fonts_loaded(self, fonts):
+        self.fonts = fonts
+        self.all_fonts = fonts.copy()  # Store all fonts
+        self.loading_label.hide()
+        self.start_update_previews()
 
     def load_fonts_from_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Folder")
         if folder:
-            for file in os.listdir(folder):
-                if file.lower().endswith(('.ttf', '.otf', '.fon')):
-                    font_path = os.path.join(folder, file)
-                    QFontDatabase.addApplicationFont(font_path)
+            # Show loading message
+            self.loading_label.setText("Loading fonts from folder...")
+            self.loading_label.show()
             
-            # Reload fonts and update preview
-            self.load_system_fonts()
-            self.update_previews()
+            # Create and start the thread
+            self.folder_loading_thread = FontFolderLoadingThread(folder)
+            self.folder_loading_thread.finished.connect(self.on_folder_fonts_loaded)
+            self.folder_loading_thread.start()
+
+    def on_folder_fonts_loaded(self, new_fonts):
+        self.fonts = new_fonts
+        self.loading_label.hide()
+        self.start_update_previews()
+        self.folder_loading_thread.deleteLater()
 
     def start_update_previews(self):
         preview_text = self.text_input.text()
@@ -118,9 +169,18 @@ class FontPreviewer(QMainWindow):
                 child.widget().deleteLater()
 
         # Create and show progress dialog
-        self.progress_dialog = QProgressDialog("Updating previews...", "Cancel", 0, len(self.fonts), self)
+        self.progress_dialog = QProgressDialog(
+            "Updating previews...", 
+            "Cancel", 
+            0, 
+            len(self.fonts), 
+            self
+        )
+        self.progress_dialog.setWindowTitle("Updating Previews")
         self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self.progress_dialog.setMinimumDuration(0)  # Show immediately
         self.progress_dialog.canceled.connect(self.cancel_update)
+        
 
         # Create and start update thread
         self.update_thread = PreviewUpdateThread(self.fonts, preview_text)
@@ -180,9 +240,6 @@ class FontPreviewer(QMainWindow):
         
         container_layout.addWidget(preview_label)
 
-        # Add click handling
-        # container.mousePressEvent = lambda e: self.handle_font_selection(container)
-        
         # Add context menu to both labels
         self.add_context_menu(container, font_name)
 
@@ -192,6 +249,7 @@ class FontPreviewer(QMainWindow):
         spacer = QLabel()
         spacer.setFixedHeight(10)
         self.scroll_layout.addWidget(spacer)
+
     def handle_font_selection(self, container):
         # Deselect all other containers
         for i in range(self.scroll_layout.count()):
@@ -216,9 +274,49 @@ class FontPreviewer(QMainWindow):
 
         widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         widget.customContextMenuRequested.connect(show_context_menu)
-    def update_previews(self):
-        # This method is now deprecated but kept for reference
-        pass
+
+    def toggle_search(self):
+        if self.search_input.isHidden():
+            # Show search
+            self.search_input.show()
+            self.search_button.setIcon(QIcon("x.png"))  # Make sure to have an X icon file
+            self.search_input.setFocus()
+        else:
+            # Hide search and clear filter
+            self.search_input.hide()
+            self.search_input.clear()
+            self.search_button.setIcon(QIcon("search.png"))
+            self.fonts = self.all_fonts.copy()
+            self.start_update_previews()
+
+    def filter_fonts(self):
+        search_text = self.search_input.text().lower()
+        if search_text:
+            self.fonts = [font for font in self.all_fonts if search_text in font.lower()]
+        else:
+            self.fonts = self.all_fonts.copy()
+        self.start_update_previews()
+
+class FontFolderLoadingThread(QThread):
+    finished = Signal(list)
+    
+    def __init__(self, folder_path):
+        super().__init__()
+        self.folder_path = folder_path
+    
+    def run(self):
+        loaded_fonts = []
+        for file in os.listdir(self.folder_path):
+            if file.lower().endswith(('.ttf', '.otf', '.fon')):
+                font_path = os.path.join(self.folder_path, file)
+                font_id = QFontDatabase.addApplicationFont(font_path)
+                if font_id != -1:
+                    # Get the font family names for this specific font file
+                    families = QFontDatabase.applicationFontFamilies(font_id)
+                    loaded_fonts.extend(families)
+        
+        self.finished.emit(loaded_fonts)
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = FontPreviewer()
