@@ -1,40 +1,12 @@
 import sys
 import os
-import uharfbuzz as hb
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QScrollArea, QLabel, QPushButton, QLineEdit, QFileDialog,
                                QProgressDialog, QSpinBox, QHBoxLayout, QMenu, QToolButton)
-from PySide6.QtGui import (QFont, QFontDatabase, QAction, QIcon, QPainter, QRawFont, 
-                          QGlyphRun, QTextCharFormat, QTextLayout)
-from PySide6.QtCore import Qt, QThread, Signal, QPointF
+from PySide6.QtGui import QFont, QFontDatabase, QAction, QIcon
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QScroller
 from PySide6.QtWidgets import QFrame
-
-class HarfBuzzRenderer:
-    def __init__(self, font_path):
-        # Initialize HarfBuzz
-        with open(font_path, 'rb') as font_file:
-            self.font_data = font_file.read()
-        
-        self.blob = hb.Blob(self.font_data)
-        self.face = hb.Face(self.blob)
-        self.font = hb.Font(self.face)
-        
-        # Create buffer
-        self.buf = hb.Buffer()
-        self.buf.direction = "rtl"  # For Arabic
-        self.buf.script = "Arab"
-        self.buf.language = "ar"
-
-        # Store Qt font info
-        self.font_id = QFontDatabase.addApplicationFont(font_path)
-        self.font_family = QFontDatabase.applicationFontFamilies(self.font_id)[0]
-
-    def shape_text(self, text):
-        self.buf.clear_contents()
-        self.buf.add_str(text)
-        hb.shape(self.font, self.buf)
-        return self.buf.get_glyph_infos(), self.buf.get_glyph_positions()
 
 class FontLoadingThread(QThread):
     finished = Signal(list)
@@ -70,47 +42,6 @@ class PreviewUpdateThread(QThread):
             self.msleep(10)
             
         self.finished.emit()
-
-class HarfBuzzPreviewWidget(QWidget):
-    def __init__(self, font_name, text, font_size):
-        super().__init__()
-        self.font_name = font_name
-        self.text = text
-        self.font_size = font_size
-        self.setMinimumHeight(50)  # Adjust as needed
-
-        # Create QFont for fallback rendering
-        self.qt_font = QFont(font_name)
-        self.qt_font.setPointSize(font_size)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Try HarfBuzz rendering first
-        try:
-            layout = QTextLayout(self.text)
-            layout.setFont(self.qt_font)
-            
-            # Configure for Arabic text
-            option = layout.textOption()
-            option.setTextDirection(Qt.RightToLeft)
-            layout.setTextOption(option)
-
-            # Perform text shaping
-            layout.beginLayout()
-            line = layout.createLine()
-            if line.isValid():
-                line.setLineWidth(self.width())
-            layout.endLayout()
-
-            # Draw the text
-            layout.draw(painter, QPointF(10, 30))  # Adjust position as needed
-
-        except Exception as e:
-            # Fallback to standard Qt rendering
-            painter.setFont(self.qt_font)
-            painter.drawText(self.rect(), Qt.AlignVCenter | Qt.AlignLeft, self.text)
 
 class FontPreviewer(QMainWindow):
     def __init__(self):
@@ -249,6 +180,7 @@ class FontPreviewer(QMainWindow):
         self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         self.progress_dialog.setMinimumDuration(0)  # Show immediately
         self.progress_dialog.canceled.connect(self.cancel_update)
+        
 
         # Create and start update thread
         self.update_thread = PreviewUpdateThread(self.fonts, preview_text)
@@ -271,29 +203,48 @@ class FontPreviewer(QMainWindow):
         if self.progress_dialog:
             self.progress_dialog.setValue(progress)
 
-        # Create container frame
+        # Create a container frame for the font item
         container = QFrame()
         container.setFrameShape(QFrame.Shape.StyledPanel)
+        container.setStyleSheet("""
+            QFrame {
+                padding: 5px;
+                border-radius: 3px;
+                border: none;
+            }
+            QFrame:hover {
+                background-color: #505050;
+            }
+            QFrame[selected="true"] {
+                background-color: #cce8ff;
+                border: 1px solid #fff;
+            }
+        """)
         container_layout = QVBoxLayout(container)
+        container_layout.setSpacing(2)
+        container_layout.setContentsMargins(5, 5, 5, 5)
 
         # Font name label
         name_label = QLabel(font_name)
         name_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         container_layout.addWidget(name_label)
 
-        # Create custom preview widget with HarfBuzz support
-        preview_widget = HarfBuzzPreviewWidget(
-            font_name, 
-            preview_text, 
-            self.size_input.value()
-        )
-        container_layout.addWidget(preview_widget)
+        # Preview label
+        preview_label = QLabel(preview_text)
+        font = QFont(font_name, self.size_input.value())
+        preview_label.setFont(font)
+        
+        # Handle RTL text
+        if any(ord(char) in range(0x0600, 0x06FF) for char in preview_text):
+            preview_label.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        
+        container_layout.addWidget(preview_label)
 
-        # Add context menu
+        # Add context menu to both labels
         self.add_context_menu(container, font_name)
 
         self.scroll_layout.addWidget(container)
-        
+
         # Add spacing
         spacer = QLabel()
         spacer.setFixedHeight(10)
