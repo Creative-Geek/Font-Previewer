@@ -2,8 +2,8 @@ import sys
 import os
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QScrollArea, QLabel, QPushButton, QLineEdit, QFileDialog,
-                               QProgressDialog, QSpinBox, QHBoxLayout)
-from PySide6.QtGui import QFont, QFontDatabase
+                               QProgressDialog, QSpinBox, QHBoxLayout, QMenu)
+from PySide6.QtGui import QFont, QFontDatabase, QAction
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QScroller
 
@@ -155,14 +155,25 @@ class FontPreviewer(QMainWindow):
         
         self.scroll_layout.addWidget(preview_label)
 
+        # Add context menu to both labels
+        self.add_context_menu(name_label, font_name)
+        self.add_context_menu(preview_label, font_name)
+
         # Add spacing
         spacer = QLabel()
         spacer.setFixedHeight(20)
         self.scroll_layout.addWidget(spacer)
 
-    def update_previews(self):
-        # This method is now deprecated but kept for reference
-        pass
+    def add_context_menu(self, widget, font_name):
+        def show_context_menu(point):
+            context_menu = QMenu(self)
+            copy_action = QAction("Copy Font Name", self)
+            copy_action.triggered.connect(lambda: QApplication.clipboard().setText(font_name))
+            context_menu.addAction(copy_action)
+            context_menu.exec(widget.mapToGlobal(point))
+
+        widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        widget.customContextMenuRequested.connect(show_context_menu)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
