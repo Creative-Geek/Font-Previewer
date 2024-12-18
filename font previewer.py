@@ -3,7 +3,7 @@ import os
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QScrollArea, QLabel, QPushButton, QLineEdit, QFileDialog,
                                QProgressDialog, QSpinBox, QHBoxLayout, QMenu)
-from PySide6.QtGui import QFont, QFontDatabase, QAction
+from PySide6.QtGui import QFont, QFontDatabase, QAction, QIcon
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QScroller
 from PySide6.QtWidgets import QFrame
@@ -30,6 +30,9 @@ class FontPreviewer(QMainWindow):
         super().__init__()
         self.setWindowTitle("Font Previewer")
         self.setMinimumSize(800, 600)
+
+        # Set window icon
+        self.setWindowIcon(QIcon("Icon.ico"))
 
         # Create main widget and layout
         main_widget = QWidget()
