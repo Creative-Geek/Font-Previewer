@@ -1,15 +1,15 @@
 import sys
 import os
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QScrollArea, QLabel, QPushButton, QLineEdit, QFileDialog,
-                            QProgressDialog, QSpinBox, QHBoxLayout)
-from PyQt6.QtGui import QFont, QFontDatabase
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtWidgets import QScroller
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                               QScrollArea, QLabel, QPushButton, QLineEdit, QFileDialog,
+                               QProgressDialog, QSpinBox, QHBoxLayout)
+from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtWidgets import QScroller
 
 class PreviewUpdateThread(QThread):
-    font_processed = pyqtSignal(str, str, int)
-    finished = pyqtSignal()
+    font_processed = Signal(str, str, int)
+    finished = Signal()
 
     def __init__(self, fonts, preview_text):
         super().__init__()
