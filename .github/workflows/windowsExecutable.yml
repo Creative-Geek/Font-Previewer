@@ -1,4 +1,4 @@
-name: Build Executable with Nuitka
+name: Build Windows Executable with Nuitka
 
 on:
   push:
@@ -45,7 +45,8 @@ jobs:
 
     # Step 5: Upload artifact
     - name: Upload Executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: FontPreviewerExecutable
-        path: ./font_previewer.dist/font previewer.exe
+        path: build/font previewer.exe
+        include-hidden-files: true
