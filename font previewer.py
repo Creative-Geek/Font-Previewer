@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtGui import QFont, QFontDatabase, QAction
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QScroller
+from PySide6.QtWidgets import QFrame
 
 class PreviewUpdateThread(QThread):
     font_processed = Signal(str, str, int)
@@ -55,7 +56,7 @@ class FontPreviewer(QMainWindow):
         input_layout.addWidget(self.size_input)
 
         # Adjust size input width
-        self.size_input.setFixedWidth(100)
+        self.size_input.setFixedWidth(120)
 
         # Create load fonts button
         load_button = QPushButton("Load Fonts from Folder")
@@ -139,10 +140,31 @@ class FontPreviewer(QMainWindow):
         if self.progress_dialog:
             self.progress_dialog.setValue(progress)
 
+        # Create a container frame for the font item
+        container = QFrame()
+        container.setFrameShape(QFrame.Shape.StyledPanel)
+        container.setStyleSheet("""
+            QFrame {
+                padding: 5px;
+                border-radius: 3px;
+                border: none;
+            }
+            QFrame:hover {
+                background-color: #505050;
+            }
+            QFrame[selected="true"] {
+                background-color: #cce8ff;
+                border: 1px solid #fff;
+            }
+        """)
+        container_layout = QVBoxLayout(container)
+        container_layout.setSpacing(2)
+        container_layout.setContentsMargins(5, 5, 5, 5)
+
         # Font name label
         name_label = QLabel(font_name)
         name_label.setStyleSheet("font-weight: bold; font-size: 12px;")
-        self.scroll_layout.addWidget(name_label)
+        container_layout.addWidget(name_label)
 
         # Preview label
         preview_label = QLabel(preview_text)
@@ -153,16 +175,33 @@ class FontPreviewer(QMainWindow):
         if any(ord(char) in range(0x0600, 0x06FF) for char in preview_text):
             preview_label.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         
-        self.scroll_layout.addWidget(preview_label)
+        container_layout.addWidget(preview_label)
 
+        # Add click handling
+        # container.mousePressEvent = lambda e: self.handle_font_selection(container)
+        
         # Add context menu to both labels
-        self.add_context_menu(name_label, font_name)
-        self.add_context_menu(preview_label, font_name)
+        self.add_context_menu(container, font_name)
+
+        self.scroll_layout.addWidget(container)
 
         # Add spacing
         spacer = QLabel()
-        spacer.setFixedHeight(20)
+        spacer.setFixedHeight(10)
         self.scroll_layout.addWidget(spacer)
+    def handle_font_selection(self, container):
+        # Deselect all other containers
+        for i in range(self.scroll_layout.count()):
+            widget = self.scroll_layout.itemAt(i).widget()
+            if isinstance(widget, QFrame):
+                widget.setProperty("selected", False)
+                widget.style().unpolish(widget)
+                widget.style().polish(widget)
+        
+        # Select the clicked container
+        container.setProperty("selected", True)
+        container.style().unpolish(container)
+        container.style().polish(container)
 
     def add_context_menu(self, widget, font_name):
         def show_context_menu(point):
@@ -174,7 +213,9 @@ class FontPreviewer(QMainWindow):
 
         widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         widget.customContextMenuRequested.connect(show_context_menu)
-
+    def update_previews(self):
+        # This method is now deprecated but kept for reference
+        pass
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = FontPreviewer()
