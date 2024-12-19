@@ -163,3 +163,4 @@ cython_debug/
 font previewer.dist/x.png
 font previewer.dist/search.png
 tempCodeRunnerFile.py
+/font previewer.dist
