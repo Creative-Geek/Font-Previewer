@@ -5,6 +5,9 @@
 # Font Previewer
 A modern, user-friendly desktop application for previewing and choosing fonts, built with PySide6 (Qt).
 
+> [!NOTE]
+> You can use [Type Explorer](typeface-explorer.vercel.app) which is much faster and requires zero downloads and almost no traffic.
+
 ![image](https://i.ibb.co/M2wY20L/Font-Previewer.png)
 <p align="center">
   <a href="https://github.com/Creative-Geek/Font-Previewer/releases/download/v1.0.0/Font.Previewer.exe">  <img src="https://i.ibb.co/5rqVygb/Download-Button.png" />
