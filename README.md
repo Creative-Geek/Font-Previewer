@@ -6,7 +6,7 @@
 A modern, user-friendly desktop application for previewing and choosing fonts, built with PySide6 (Qt).
 
 > [!NOTE]
-> You can use [Type Explorer](typeface-explorer.vercel.app) which is much faster and requires zero downloads and almost no traffic.
+> You can use [Type Explorer](https://typeface-explorer.vercel.app/), which is much faster, requires zero downloads, and uses almost no traffic.
 
 ![image](https://i.ibb.co/M2wY20L/Font-Previewer.png)
 <p align="center">
